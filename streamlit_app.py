@@ -1,130 +1,90 @@
 import streamlit as st
-from PIL import Image, ImageDraw
 import io
+from PIL import Image
 
-# 設定頁面標題
-st.set_page_config(page_title="圖片切分神器", layout="wide")
-st.title("✂️ 圖片切分神器 (帶有預覽功能)")
-st.markdown("透過預覽線條，確保你的切分位置完全正確！")
+# 設定頁面標題與圖示
+st.set_page_config(page_title="圖片切分工具", page_icon="✂️")
 
-# --- 核心功能函數：繪製預覽線條 ---
-def create_preview(img, num_parts, mode):
-    """
-    在圖片上繪製切分線作為預覽
-    mode: 'rows' (橫向切分，產生水平線) 或 'columns' (縱向切 欄，產生垂直線)
-    """
-    preview_img = img.copy()
-    draw = ImageDraw.Draw(preview_img)
-    width, height = preview_img.size
-    
-    # 設定線條顏色 (亮青色，確保在各種背景都清晰)
-    line_color = (0, 255, 255) 
-    line_width = 5
-    
-    if mode == 'rows':
-        # 產生水平線 (把圖片切成橫列)
-        for i in range(1, num_parts):
-            y = height * (i / num_parts)
-            draw.line([(0, y), (width, y)], fill=line_color, width=line_width)
-            
-    elif mode == 'columns':
-        # 產生垂直線 (把圖片切成直欄)
-        for i in range(1, num_parts):
-            x = width * (i / num_parts)
-            draw.line([(x, 0), (x, height)], fill=line_color, width=line_width)
-            
-    return preview_img
+st.title("✂️ 圖片切分工具")
+st.markdown("上傳一張圖片，設定切分份數，快速完成圖片分割！")
 
-# --- 主程式介面 ---
-uploaded_file = st.file_uploader("請上傳一張圖片", type=["jpg", "jpeg", "png"])
+# --- 側邊欄設定 ---
+st.sidebar.header("⚙️ 設定參數")
+st.sidebar.markdown("請在下方設定切分比例")
 
-if uploaded_file is not_none:
-    # 讀取原始圖片
+# 讀取檔案
+uploaded_file = st.file_uploader("請上傳圖片 (PNG, JPG, JPEG)", type=["png", "jpg", "jpeg"])
+
+if uploaded_file is not None:  # <--- 這裡已經修正為正確的語法 is not None
+    # 讀取圖片
     image = Image.open(uploaded_file)
-    
-    # 建立側邊欄控制面板
-    st.sidebar.header("⚙️ 切分設定")
-    
-    # 1. 選擇切分模式
-    split_mode = st.sidebar.selectbox(
-        "切分方向",
-        options=['columns', 'rows'],
-        format_func=lambda x: "垂直切分 (產生直欄)" if x == 'columns' else "水平切分 (產生橫列)"
-    )
-    
-    # 2. 設定切分數量
-    num_parts = st.sidebar.slider(
-        "切分數量",
-        min_value=2,
-        max_value=20,
-        value=2
-    )
+    img_width, img_height = image.size
 
-    # 建立預覽圖
-    preview_image = create_preview(image, num_parts, split_mode)
-
-    # --- 畫面佈局：左邊原始圖，右邊預覽圖 ---
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("🖼️ 原始圖片")
-        st.image(image, use_container_width=True)
-        
-    with col2:
-        st.subheader("👀 預覽切分線 (青色線條)")
-        st.image(preview_image, use_container_width=True)
+    # 顯示原圖
+    st.subheader("🖼️ 原圖預覽")
+    st.image(image, use_container_width=True)
+    st.info(f"圖片解析度: {img_width} x {img_height} px")
 
     st.divider()
 
-    # --- 執行切分邏輯 ---
-    if st.button("🚀 開始執行切分"):
-        st.success("切分完成！正在準備下載...")
-        
-        width, height = image.size
-        parts_list = []
-        
-        # 根據模式進行切分
-        if split_mode == 'rows':
-            # 水平切分 (產生橫列)
-            for i in range(num_parts):
-                top = height * (i / num_parts)
-                bottom = height * ((i + 1) / num_parts)
-                part = image.crop((0, top, width, bottom))
-                parts_list.append(part)
-                
-        else:
-            # 垂直切分 (產生直欄)
-            for i in range(num_parts):
-                left = width * (i / num_parts)
-                right = width * ((i + 1) / num_parts)
-                part = image.crop((left, 0, right, height))
-                parts_list.append(part)
+    # --- 切分參數設定 ---
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        rows = st.number_input("垂直切分份數 (列)", min_value=1, value=1, step=1)
+    with col2:
+        cols = st.number_input("水平切分份數 (欄)", min_value=1, value=1, step=1)
 
-        # 顯示結果並提供下載
-        st.subheader("📦 切分結果")
-        cols = st.columns(min(len(parts_list), 4)) # 建立列來顯示圖片
+    if st.button("🚀 開始切分圖片"):
+        st.subheader("✂️ 切分結果")
         
-        for idx, part in enumerate(parts_list):
-            with cols[idx % 4]:
-                st.image(part, caption=f"Part {idx+1}")
+        # 計算每個區塊的大小
+        piece_width = img_width // cols
+        piece_height = img_height // rows
+        
+        # 用來存放切分後的圖片
+        pieces = []
+
+        # 執行切分邏輯
+        for r in range(rows):
+            for c in range(cols):
+                # 計算左、上、右、下的座標
+                left = c * piece_width
+                top = r * piece_height
+                # 最後一列/欄要補足剩餘像素，避免因為整除不盡導致邊緣留白
+                right = (c + 1) * piece_width if c < cols - 1 else img_width
+                bottom = (r + 1) * piece_height if r < rows - 1 else img_height
+                
+                # 裁切圖片
+                piece = image.crop((left, top, right, bottom))
+                pieces.append(piece)
+
+        # --- 顯示結果與下載 ---
+        # 使用 Grid 佈局顯示切分後的圖
+        display_cols = st.columns(2) # 每列顯示 2 張圖
+        
+        for idx, p in enumerate(pieces):
+            with display_cols[idx % 2]:
+                st.image(p, caption=f"區塊 {idx+1}", use_container_width=True)
                 
                 # 準備下載按鈕
-                # 將圖片轉為 bytes 供下載使用
-                import io
                 buf = io.BytesIO()
-                part.save(buf, format="PNG")
+                p.save(buf, format="PNG")
                 byte_im = buf.getvalue()
                 
                 st.download_button(
-                    label=f"下載 Part {idx+1}",
+                    label=f"下載區塊 {idx+1}",
                     data=byte_im,
-                    file_name=f"split_part_{idx+1}.png",
+                    file_name=f"piece_{idx+1}.png",
                     mime="image/png",
                     key=f"btn_{idx}"
                 )
         
-        if len(parts_list) > 4:
-            st.info("提示：如果切分數量很多，請向上捲動查看完整結果。")
+        st.success(f"✅ 完成！共切分成 {len(pieces)} 個區塊。")
 
 else:
-    st.info("👋 請在上方上傳一張圖片開始操作！")
+    st.info("👋 尚未上傳圖片，請點擊上方按鈕上傳圖片以開始。")
+
+# --- 頁尾 ---
+st.divider()
+st.caption("由 Streamlit 驅動的自動化圖像處理工具")
