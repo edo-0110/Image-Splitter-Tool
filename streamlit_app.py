@@ -8,10 +8,6 @@ st.set_page_config(page_title="圖片切分工具", page_icon="✂️")
 st.title("✂️ 圖片切分工具")
 st.markdown("上傳一張圖片，設定切分份數，快速完成圖片分割！")
 
-# --- 側邊欄設定 ---
-st.sidebar.header("⚙️ 設定參數")
-st.sidebar.markdown("請在下方設定切分比例")
-
 # 讀取檔案
 uploaded_file = st.file_uploader("請上傳圖片 (PNG, JPG, JPEG)", type=["png", "jpg", "jpeg"])
 
