@@ -2,79 +2,103 @@ import streamlit as st
 from PIL import Image
 import io
 
-# --- 頁面設定 ---
-st.set_page_config(page_title="圖片左右分割器", page_icon="✂️")
+def split_image(image, direction):
+    """
+    根據方向切割圖片
+    direction: "vertical" (左右分) 或 "horizontal" (上下分)
+    """
+    width, height = image.size
+    parts = []
 
-st.title("✂️ 圖片左右分割器")
-st.write("上傳一張圖片，我會幫你把它從中間切成左右兩半，並提供下載！")
+    if direction == "vertical":
+        # 左右切割
+        mid = width // 2
+        part1 = image.crop((0, 0, mid, height))
+        part2 = image.crop((mid, 0, width, height))
+        parts = [part1, part2]
+    else:
+        # 上下切割
+        mid = height // 2
+        part1 = image.crop((0, 0, width, mid))
+        part2 = image.crop((0, mid, width, height))
+        parts = [part1, part2]
+    
+    return parts
 
-# --- 處理邏輯函數 ---
-def split_image(input_image):
-    """將圖片從中間垂直切割成左右兩部分"""
-    width, height = input_image.size
-    mid_point = width // 2
-    
-    # 切割左半部 (左, 上, 右, 下)
-    left_part = input_image.crop((0, 0, mid_point, height))
-    # 切割右半部
-    right_part = input_image.crop((mid_point, 0, width, height))
-    
-    return left_part, right_part
+def main():
+    st.set_📸_page_config(page_title="全能圖片切割器", layout="wide")
+    st.title("✂️ 全能圖片切割器")
+    st.write("你可以選擇將圖片『左右分開』或『上下分開』")
 
-def convert_image_to_bytes(img, format="PNG"):
-    """將 PIL Image 物件轉換為可以下載的 Bytes 格式"""
-    buf = io.BytesIO()
-    img.save(buf, format=format)
-    return buf.getvalue()
+    # 1. 側邊欄：設定功能
+    st.sidebar.header("⚙️ 切割設定")
+    direction_option = st.sidebar.radio(
+        "選擇切割方向：",
+        ("垂直切割 (左右分)", "水平切割 (上下分)")
+    )
+    
+    # 將使用者的文字轉換為程式邏輯文字
+    split_mode = "vertical" if "垂直" in direction_option else "horizontal"
 
-# --- UI 介面 ---
-uploaded_file = st.file_uploader("請上傳圖片 (JPG, PNG, JPEG)", type=["jpg", "jpeg", "png"])
+    # 2. 檔案上傳
+    uploaded_file = st.file_io_uploader("請上傳一張圖片", type=["png", "jpg", "jpeg"])
 
-if uploaded_file is not None:
-    # 1. 開啟圖片
-    image = Image.open(uploaded_file)
-    
-    # 2. 顯示原始圖片
-    st.subheader("🖼️ 原始圖片")
-    st.image(image, use_container_width=True)
-    
-    st.divider()
-    
-    # 3. 執行切割邏輯
-    with st.spinner('正在切割中...'):
-        left_img, right_img = split_image(image)
-    
-    # 4. 顯示結果與下載按鈕
-    st.subheader("✂️ 切割結果")
-    
-    # 使用左右兩欄佈局
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.image(left_img, caption="左半部", use_container_width=True)
-        # 準備左半部下載用的資料
-        left_bytes = convert_image_to_bytes(left_img)
-        st.download_button(
-            label="📥 下載左半部",
-            data=left_bytes,
-            file_name="left_part.png",
-            mime="image/png",
-            key="download_left"
-        )
+    if uploaded_file is not None:
+        # 開啟圖片
+        image = Image.open(uploaded_file)
         
-    with col2:
-        st.image(right_img, caption="右半部", use_container_width=True)
-        # 準備右半部下載用的資料
-        right_bytes = convert_image_to_bytes(right_img)
-        st.download_button(
-            label="📥 下載右半部",
-            data=right_bytes,
-            file_name="right_part.png",
-            mime="image/png",
-            key="download_right"
-        )
+        # 顯示原圖
+        st.subheader("🖼️ 原圖預覽")
+        st.image(image, use_container_width=True)
+        
+        st.divider()
 
-    st.success("處理完成！請點擊上方按鈕下載圖片。")
+        # 3. 執行切割邏ient
+        st.subheader(f"🚀 執行任務：{direction_option}")
+        parts = split_image(image, split_mode)
 
-else:
-    st.info("💡 請在上方的檔案上傳框中選擇一張圖片開始。")
+        # 4. 顯示結果與下載按鈕
+        if split_mode == "vertical":
+            # 左右佈局
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                st.write("👈 左半部分")
+                st.image(parts[0], use_container_width=True)
+                # 下載按鈕
+                buf = io.BytesIO()
+                parts[0].save(buf, format="PNG")
+                st.download_button("下載左半部", buf.getvalue(), "left_part.png", "image/png")
+
+            with col2:
+                st.write("👉 右半部分")
+                st.image(parts[1], use_container_width=True)
+                # 下載按鈕
+                buf = io.BytesIO()
+                parts[1].save(buf, format="PNG")
+                st.download_button("下載右半部", buf.getvalue(), "image/png", "image/png")
+        
+        else:
+            # 上下佈局
+            col_top, col_bottom = st.columns(1)
+            
+            with col_top:
+                st.write("👆 上半部分")
+                st.image(parts[0], use_container_width=True)
+                buf = io.BytesIO()
+                parts[0].save(buf, format="PNG")
+                st.download_button("下載上半部", buf.getvalue(), "top_part.png", "image/png")
+            
+            st.write("---") # 分隔線
+            
+            with col_bottom:
+                st.write("👇 下半部分")
+                st.image(parts[1], use_container_width=True)
+                buf = io.BytesIO()
+                parts[1].save(buf, format="PNG")
+                st.download_button("下載下半部", buf.getvalue(), "bottom_part.png", "image/png")
+
+    else:
+        st.info("👈 請從上方上傳圖片開始使用")
+
+if __name__
