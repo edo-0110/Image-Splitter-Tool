@@ -2,110 +2,79 @@ import streamlit as st
 from PIL import Image
 import io
 
-# 設定頁面標題與圖示
-st.set_page_config(page_title="極簡圖片切割工具", page_icon="✂️")
+# 設定頁面標題
+st.set_page_config(page_title="萬能圖片切割器", layout="centered")
 
-st.title("✂️ 極簡圖片切割工具")
-st.markdown("上傳圖片，設定行列，一鍵完成切割並下載。")
+st.title("✂️ 萬能圖片切割器")
+st.write("上傳一張圖片，快速進行水平或垂直切割。")
 
-# --- 第一階段：上傳與參數設定 ---
-st.divider()
-st.subheader("1. 上傳與參數設定")
+# 上傳檔案
+uploaded_file = st.file_uploader("選擇一張圖片...", type=["jpg", "jpeg", "png"])
 
-# 使用兩欄式佈局來放置上傳與設定
-col_upload, col_settings = st.columns([1, 1])
-
-with col_upload:
-    uploaded_file = st.file_uploader("選擇一張圖片", type=["png", "jpg", "jpeg", "webp"])
-
-with col_settings:
-    # 使用 columns 讓參數並排，更省空間
-    c1, c2 = st.columns(2)
-    with c1:
-        rows = st.number_input("列數 (Rows)", min_value=2, value=2, step=1)
-    with c2:
-        cols = st.number_input("欄數 (Cols)", min_value=2, value=2, step=1)
-
-# --- 第二階段：預覽與即時處理 ---
 if uploaded_file is not None:
     # 讀取圖片
-    img = Image.open(uploaded_file)
-    img_width, img_height = img.size
-
-    st.divider()
-    st.subheader("2. 即時預覽 (裁切線示範)")
-
-    # 為了方便預覽，我們建立一個繪製裁切線的圖層
-    preview_img = img.copy().convert("RGB")
-    from PIL import ImageDraw
-    draw = ImageDraw.Draw(preview_img)
+    image = Image.open(uploaded_file)
+    st.image(image, caption='上傳的圖片', use_container_width=True)
     
-    # 計算間距
-    cell_w = img_width / cols
-    cell_html_h = img_height / rows
-    
-    # 繪製水平線 (Rows)
-    for i in range(1, rows):
-        y = i * (img_height / rows)
-        draw.line([(0, y), (img_width, y)], fill="light blue", width=5)
-        
-    # 繪製垂直線 (Cols)
-    for j in range(1, cols):
-        x = j * (img_width / cols)
-        draw.line([(x, 0), (x, img_height)], fill="light blue", width=5)
+    st.write("---")
+    st.subheader("切割設定")
 
-    # 顯示預覽圖 (縮小顯示以免佔據太大空間)
-    # 使用 streamlit 的容器來控制預覽大小
-    st.image(preview_img, caption=f"原圖尺寸: {img_width}x{img_height} | 預計切割為 {rows}x{cols} 格", use_container_width=True)
+    # 取得圖片尺寸
+    width, height = image.size
+    st.info(f"目前圖片尺寸: {width} x {height} px")
 
-    # --- 第三階段：執行切割與下載 ---
-    st.divider()
-    st.subheader("3. 執行切割與下載")
-    
-    if st.button("🚀 開始切割圖片", type="primary"):
-        st.info(f"正在將圖片切割為 {rows * cols} 個區塊...")
+    # 切割模式選擇
+    mode = st.radio("選擇切割方向", ("水平切割 (Horizontal)", "垂直切割 (Vertical)"))
+
+    if mode == "水平切割 (Horizontal)":
+        num_parts = st.slider("要切成幾份？", min_value=2, max_value=10, value=2)
+        part_height = height // num_parts
         
-        # 建立一個容器來存放生成的圖片
-        output_cols = st.columns(3) # 每列顯示 3 張圖
-        
-        count = 0
-        for r in range(rows):
-            for c in range(cols):
-                # 計算切割邊界
-                left = c * (img_width / cols)
-                top = r * (img_height / rows)
-                right = (c + 1) * (img_width / cols)
-                bottom = (r + 1) * (img_height / rows)
+        if st.button("執行切割"):
+            cols = st.columns(1) # 這裡用單欄顯示結果
+            for i in range(num_capture := num_parts):
+                top = i * part_height
+                # 最後一份要確保包含到底部，避免因整除餘數導致漏掉像素
+                bottom = (i + 1) * part_height if i < num_parts - 1 else height
                 
-                # 切割
-                cropped_img = img.crop((left, top, right, bottom))
+                cropped_img = image.crop((0, top, width, bottom))
                 
-                # 準備下載
+                st.write(f"第 {i+1} 份")
+                st.image(cropped_img, use_container_width=True)
+                
+                # 提供下載按鈕
                 buf = io.BytesIO()
                 cropped_img.save(buf, format="PNG")
-                byte_im = buf.getvalue()
-                
-                # 顯示在對應的欄位中
-                with output_cols[count % 3]:
-                    st.image(cropped_img, caption=f"區塊 ({r},{c})", use_container_width=True)
-                    st.download_button(
-                        label="📥 下載此格",
-                        data=byte_im,
-                        file_name=f"crop_{r}_{c}.png",
-                        mime="image/png",
-                        key=f"btn_{r}_{c}"
-                    )
-                
-                count += 1
-                if count % 3 == 0: # 換行
-                    st.divider()
+                st.download_button(
+                    label=f"下載第 {i+1} 份",
+                    data=buf.getvalue(),
+                    file_name=f"part_{i+1}.png",
+                    mime="image/png"
+                )
+
+    else: # 垂直切割
+        num_parts = st.slider("要切成幾份？", min_value=2, max_value=10, value=2)
+        part_width = width // num_parts
         
-        st.success("✅ 切割完成！")
-    else:
-        st.write("請點擊上方按鈕執行切割。")
+        if st.button("執行切割"):
+            for i in range(num_parts):
+                left = i * part_width
+                right = (i + 1) * part_width if i < num_parts - 1 else width
+                
+                cropped_img = image.crop((left, 0, right, height))
+                
+                st.write(f"第 {i+1} 份")
+                st.image(cropped_img, use_container_width=True)
+                
+                # 提供下載按鈕
+                buf = io.BytesIO()
+                cropped_img.save(buf, format="PNG")
+                st.download_button(
+                    label=f"下載第 {i+1} 份",
+                    data=buf.getvalue(),
+                    file_name=f"part_{i+1}.png",
+                    mime="image/png"
+                )
 
 else:
-    st.info("👈 請先在上方上傳圖片以開始。")
-
-# 頁尾
-st.caption("（圖片處理皆在您的瀏覽器/伺服器端完成）")
+    st.info("請在上方上傳圖片以開始使用。")
