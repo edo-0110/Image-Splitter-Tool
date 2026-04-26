@@ -22,41 +22,52 @@ with col_settings:
     # 使用 columns 讓參數並排，更省空間
     c1, c2 = st.columns(2)
     with c1:
-        rows = st.number_input("列數 (Rows)", min_value=1, value=1, step=1)
+        rows = st.number_input("列數 (Rows)", min_value=2, value=2, step=1)
     with c2:
-        cols = st.number_input("欄數 (Cols)", min_value=1, value=1, step=1)
+        cols = st.number_input("欄數 (Cols)", min_value=2, value=2, step=1)
 
 # --- 第二階段：預覽與即時處理 ---
 if uploaded_file is not None:
     # 讀取圖片
-    img = Image.open(uploaded_file)
-    img_width, img_height = img.size
-
+    from PIL import Image
+    image = Image.open(uploaded_file)
+    
     st.divider()
-    st.subheader("2. 即時預覽 (裁切線示範)")
+    
+    # 建立顯示區域
+    display_col, info_col = st.columns([3, 1])
+    
+    with info_col:
+        st.metric("原始尺寸", f"{image.width} x {image.height} px")
+        st.write(f"分割目標: {rows} x {cols} = {rows * cols} 片")
 
-    # 為了方便預覽，我們建立一個繪製裁切線的圖層
-    preview_img = img.copy().convert("RGB")
-    from PIL import ImageDraw
-    draw = ImageDraw.Draw(preview_img)
-    
-    # 計算間距
-    cell_w = img_width / cols
-    cell_html_h = img_height / rows
-    
-    # 繪製水平線 (Rows)
-    for i in range(1, rows):
-        y = i * (img_height / rows)
-        draw.line([(0, y), (img_width, y)], fill="red", width=5)
+    with display_col:
+        # --- 預覽功能：繪製藍色分割線 ---
+        # 為了不破壞原圖，我們建立一個副本來做預覽
+        preview_img = image.copy().convert("RGB")
+        from PIL import ImageDraw
+        draw = ImageDraw.Draw(preview_img)
         
-    # 繪製垂直線 (Cols)
-    for j in range(1, cols):
-        x = j * (img_width / cols)
-        draw.line([(x, 0), (x, img_height)], fill="red", width=5)
-
-    # 顯示預覽圖 (縮小顯示以免佔據太大空間)
-    # 使用 streamlit 的容器來控制預覽大小
-    st.image(preview_img, caption=f"原圖尺寸: {img_width}x{img_height} | 預計切割為 {rows}x{cols} 格", use_container_width=True)
+        # 定義天空藍顏色 (Sky Blue)
+        sky_blue = (0, 191, 255) 
+        
+        # 計算分割線位置
+        width, height = preview_img.size
+        
+        # 繪製橫線 (Rows)
+        if rows > 1:
+            for i in range(1, rows):
+                y = i * (height / rows)
+                draw.line([(0, y), (width, y)], fill=sky_blue, width=3)
+                
+        # 繪製直線 (Cols)
+        if cols > 1:
+            for j in range(1, cols):
+                x = j * (width / cols)
+                draw.line([(x, 0), (x, height)], fill=sky_blue, width=3)
+        
+        # 顯示預覽圖
+        st.image(preview_img, caption="分割預覽 (藍色線條為切割邊界)", use_container_width=True)
 
     # --- 第三階段：執行切割與下載 ---
     st.divider()
